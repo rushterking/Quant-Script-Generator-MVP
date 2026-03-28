@@ -10,7 +10,7 @@ try:
 except:
     # Fallback murni buat tes lokal di VS Code lo SEBELUM di-push.
     # KOSONGKAN string ini sebelum lo ketik 'git commit'!
-    API_KEY = "sk-EhP7zKwDDqS0vqN8aBpGhA"
+    API_KEY = "INPUT_API_CODE_DISINI"
 
 # Kurir: Library OpenAI. 
 # Tujuan: Server Blackbox. 
