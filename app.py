@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from openai import OpenAI
 
@@ -6,14 +7,17 @@ from openai import OpenAI
 # ==========================================
 # Ambil API Key dari brankas rahasia Streamlit Cloud
 try:
-    API_KEY = st.secrets["BLACKBOX_API_KEY"]
-except:
-    # Fallback murni buat tes lokal di VS Code lo SEBELUM di-push.
-    # KOSONGKAN string ini sebelum lo ketik 'git commit'!
-    API_KEY = "INPUT_API_CODE_DISINI"
+    API_KEY = st.secrets.get("BLACKBOX_API_KEY", os.getenv("BLACKBOX_API_KEY"))
+except FileNotFoundError:
+    # Handle the case where the secrets.toml file doesn't exist
+    API_KEY = os.getenv("BLACKBOX_API_KEY")
+
+if not API_KEY:
+    st.error("API Key tidak ditemukan! Set BLACKBOX_API_KEY di Streamlit secrets atau environment variables.")
+    st.stop()
 
 # Kurir: Library OpenAI. 
-# Tujuan: Server Blackbox. 
+# Tujuan: Server Blackbox.
 client = OpenAI(
     api_key=API_KEY,
     base_url="https://api.blackbox.ai"
@@ -33,40 +37,40 @@ user_strategy = st.text_area(
     height=150
 )
 
+def generate_pine_script(client, strategy_text):
+    """Fungsi terpisah untuk menangani logika inference API."""
+    system_prompt = """
+    Lo adalah Senior Quantitative Developer.
+    Tugas lo mengubah input user menjadi kode Pine Script v5 yang valid, efisien, dan siap pakai.
+    Sertakan plot di chart dan fungsi risk management (TP/SL).
+    HANYA BERIKAN KODE DALAM CODE BLOCK. Dilarang memberikan basa-basi, intro, atau outro.
+    """
+    try:
+        completion = client.chat.completions.create(
+            model="claude-sonnet-4.5-20240514", # Memperbaiki penamaan model Claude yang tidak wajar
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": strategy_text}
+            ],
+            temperature=0.1
+        )
+        return completion.choices[0].message.content, None
+    except Exception as e:
+        return None, str(e)
+
+
 if st.button("Generate Algoritma 🚀"):
     if not user_strategy:
         st.warning("Input kosong. Jangan buang-buang compute, NPC!")
     else:
         with st.spinner("Mengkompilasi logika via Claude Sonnet..."):
+            generated_code, error = generate_pine_script(client, user_strategy)
             
-            # System Prompt = Aturan main absolut buat AI
-            system_prompt = """
-            Lo adalah Senior Quantitative Developer. 
-            Tugas lo mengubah input user menjadi kode Pine Script v5 yang valid, efisien, dan siap pakai.
-            Sertakan plot di chart dan fungsi risk management (TP/SL).
-            HANYA BERIKAN KODE DALAM CODE BLOCK. Dilarang memberikan basa-basi, intro, atau outro.
-            """
-            
-            try:
-                # ==========================================
-                # THE INFERENCE (Eksekusi Otak Claude via Blackbox)
-                # ==========================================
-                completion = client.chat.completions.create(
-                    model="claude-sonnet-4-5-20250514", # Otak Claude sesuai tes Colab lo
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_strategy}
-                    ],
-                    temperature=0.1 # Presisi tinggi, nol halusinasi
-                )
-                
-                generated_code = completion.choices[0].message.content
-                
+            if error:
+                st.error(f"System Failure / API Error: {error}")
+            else:
                 st.success("Kompilasi Sukses. Eksekusi di TradingView lo.")
                 st.code(generated_code, language="pine")
-                
-            except Exception as e:
-                st.error(f"System Failure / API Error: {e}")
 
 st.markdown("---")
 st.caption("Architecture by Timothy Ronald Protocol | Powered by Blackbox/Claude")
